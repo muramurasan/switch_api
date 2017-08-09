@@ -16,10 +16,10 @@ ActiveRecord::Schema.define(version: 20170809070700) do
   enable_extension "plpgsql"
 
   create_table "performs", force: :cascade do |t|
-    t.string   "service_name",  null: false
-    t.datetime "next_check_at", null: false
-    t.datetime "created_at",    null: false
-    t.datetime "updated_at",    null: false
+    t.string   "service_name",   null: false
+    t.datetime "next_notify_at", null: false
+    t.datetime "created_at",     null: false
+    t.datetime "updated_at",     null: false
     t.index ["service_name"], name: "index_performs_on_service_name", using: :btree
   end
 
