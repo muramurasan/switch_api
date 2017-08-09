@@ -3,7 +3,6 @@ Scrape.instance
 
 class Api::SwitchesController < ApplicationController
   def scrape
-    puts "start"
     Scrape.instance.perform
   end
 end

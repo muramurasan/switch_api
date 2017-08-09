@@ -9,6 +9,7 @@ class Scrape
   include Capybara::DSL
 
   INTERVAL_SEC = 60
+  VISIT_SITE_URL = "https://store.nintendo.co.jp/category/NINTENDOSWITCH/"
 
   def initialize
     Capybara.register_driver :poltergeist_debug do |app|
@@ -22,29 +23,38 @@ class Scrape
     @minimum_sleep_sec = 5
   end
 
-  def visit_site
-    start_time = Time.now
-    visit('https://store.nintendo.co.jp/category/NINTENDOSWITCH/')
-
-    html = Nokogiri::HTML.parse(page.html)
-    puts "Now on sale!" unless html.css('.soldout').count > 0
-
-    @responce_sec = (Time.now - start_time).to_i + 1
-    puts @responce_sec
-  end
-
   def perform
     start_time = Time.now
 
     while(end?(start_time)) do
-      visit_site
+      do_scrape
       cooldown
     end
 
-    puts (Time.now - start_time)
+    puts "The duration of this batch: #{Time.now - start_time} sec"
+  end
+
+  def do_scrape
+    start_time = Time.now
+
+    visit(VISIT_SITE_URL)
+    notify unless detect_soldout?
+
+    duration = Time.now - start_time
+    puts "Response time: #{duration} sec"
+    @responce_sec = duration.to_i + 1
   end
 
   private
+
+    def detect_soldout?
+      html = Nokogiri::HTML.parse(page.html)
+      html.css('.soldout').count > 0
+    end
+
+    def notify
+      puts "Now on sale!"
+    end
 
     def cooldown
       sleep(@responce_sec + @minimum_sleep_sec)
