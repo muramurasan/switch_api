@@ -1,0 +1,2 @@
+class Perform < ApplicationRecord
+end
