@@ -10,19 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20170809070700) do
+ActiveRecord::Schema.define(version: 0) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
-
-  create_table "performs", force: :cascade do |t|
-    t.string   "service_name",         null: false
-    t.datetime "next_notify_at",       null: false
-    t.datetime "next_down_report_at",  null: false
-    t.datetime "next_error_report_at", null: false
-    t.datetime "created_at",           null: false
-    t.datetime "updated_at",           null: false
-    t.index ["service_name"], name: "index_performs_on_service_name", using: :btree
-  end
 
 end

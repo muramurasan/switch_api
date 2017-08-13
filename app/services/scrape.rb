@@ -62,21 +62,11 @@ class Scrape
     end
 
     def load_attributes
-      @next_survival_report_at = Time.current
       @survival_report_times = 0
       @slack_client = Slack::Web::Client.new
-      perform = Perform.find_by(service_name: self.class.name)
-      if perform
-        @next_notify_at = perform.next_notify_at
-        @next_error_report_at = perform.next_error_report_at
-      else
-        @next_notify_at = Time.current + NOTIFY_COOL_DOWN_SEC
-        @next_error_report_at = Time.current + ERROR_REPORT_COOL_DOWN_SEC
-        Perform.create(service_name: self.class.name,
-                       next_notify_at: @next_notify_at,
-                       next_error_report_at: @next_error_report_at,
-                       next_survival_report_at: @next_survival_report_at)
-      end
+      @next_survival_report_at = Time.current
+      @next_notify_at = Time.current
+      @next_error_report_at = Time.current
     end
 
     def survival_report!
@@ -105,10 +95,8 @@ class Scrape
     def notify!
       return unless can_notify?
       @next_notify_at = NOTIFY_COOL_DOWN_SEC.seconds.since
-      Perform.find_or_create_by(service_name: self.class.name) do |perform|
-        perform.next_notify_at = @next_notify_at
-      end
-      slack_notify "@channel :tada: Now on sale!! :tada:"
+      # TODO: これだとメンションがうまく飛ばないので修正する
+      slack_notify(":tada: Now on sale!! :tada:", "@channel ")
     end
 
     def error_notify!
@@ -126,7 +114,8 @@ class Scrape
       (Time.current - time) < (INTERVAL_SEC - margin_sec - (MINIMUM_SLEEP_SEC * 2))
     end
 
-    def slack_notify(text)
-      @slack_client.chat_postMessage(channel: '#bot_test', text: text)
+    def slack_notify(text, prefix = "")
+      prefix << "【開発環境からのテストです】" unless Rails.env.production?
+      @slack_client.chat_postMessage(channel: '#bot_test', text: "#{prefix}#{text}")
     end
 end
