@@ -3,6 +3,7 @@ Scrape.instance
 
 class Api::SwitchesController < ApplicationController
   def scrape
-    Scrape.instance.perform
+    response = Scrape.instance.perform
+    render json: response
   end
 end

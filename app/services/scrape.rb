@@ -9,6 +9,11 @@ class Scrape
   include Capybara::DSL
 
   INTERVAL_SEC = 60
+  TEMP_RESPONSE_SEC = 5
+  MINIMUM_SLEEP_SEC = 5
+  NOTIFY_COOL_DOWN_SEC = 300
+  DOWN_REPORT_COOL_DOWN_SEC = 300
+  SURVIVAL_REPORT_COOL_DOWN_SEC = 3600 * 60
   VISIT_SITE_URL = "https://store.nintendo.co.jp/category/NINTENDOSWITCH/"
 
   def initialize
@@ -19,48 +24,96 @@ class Scrape
     Capybara.default_driver = :poltergeist
     Capybara.javascript_driver = :poltergeist
 
-    @responce_sec = 5
-    @minimum_sleep_sec = 5
+    load_attributes
   end
 
   def perform
-    start_time = Time.now
+    survival_report! if survival_report_time?
 
-    while(end?(start_time)) do
-      do_scrape
-      cooldown
+    start_time = Time.current
+    last_response_sec = TEMP_RESPONSE_SEC
+    response_hash = {}
+    request_times = 0
+
+    while(end?(start_time, last_response_sec)) do
+      last_response_sec = do_scrape
+      request_times += 1
+      response_hash.store("request#{request_times}_duration", last_response_sec)
+      cool_down(last_response_sec.to_i + 1)
     end
 
-    puts "The duration of this batch: #{Time.now - start_time} sec"
-  end
+    duration = Time.current - start_time
 
-  def do_scrape
-    start_time = Time.now
-
-    visit(VISIT_SITE_URL)
-    notify unless detect_soldout?
-
-    duration = Time.now - start_time
-    puts "Response time: #{duration} sec"
-    @responce_sec = duration.to_i + 1
+    response_hash.store("total_duration", duration)
+    response_hash
   end
 
   private
 
-    def detect_soldout?
-      html = Nokogiri::HTML.parse(page.html)
-      html.css('.soldout').count > 0
+    def do_scrape
+      start_time = Time.current
+      visit(VISIT_SITE_URL)
+      notify! if can_notify?
+    rescue
+      puts "*** error ***"
+    ensure
+      duration = Time.current - start_time
+      return duration
     end
 
-    def notify
+    def load_attributes
+      perform = Perform.find_by(service_name: self.class.name)
+      if perform
+        @next_notify_at = perform.next_notify_at
+        @next_down_report_at = perform.next_down_report_at
+        @next_survival_report_at = perform.next_survival_report_at
+      else
+        @next_notify_at = Time.current + NOTIFY_COOL_DOWN_SEC
+        @next_down_report_at = Time.current + DOWN_REPORT_COOL_DOWN_SEC
+        @next_survival_report_at = Time.current + SURVIVAL_REPORT_COOL_DOWN_SEC
+        Perform.create(service_name: self.class.name,
+                       next_notify_at: @next_notify_at,
+                       next_down_report_at: @next_down_report_at,
+                       next_survival_report_at: @next_survival_report_at)
+      end
+      @survival_report_times = 0
+    end
+
+    def survival_report!
+      @survival_report_times += 1
+      @next_survival_report_at = SURVIVAL_REPORT_COOL_DOWN_SEC.seconds.since
+      Perform.find_or_create_by(service_name: self.class.name) do |perform|
+        perform.next_survival_report_at = @next_survival_report_at
+      end
+    end
+
+    def survival_report_time?
+      @next_survival_report_at < Time.current
+    end
+
+    def can_notify?
+      !detect?("soldout") && @next_notify_at < Time.current
+    end
+
+    def detect?(css_class)
+      html = Nokogiri::HTML.parse(page.html)
+      html.css(".#{css_class}").count > 0
+    end
+
+    def notify!
+      @next_notify_at = NOTIFY_COOL_DOWN_SEC.seconds.since
+      Perform.find_or_create_by(service_name: self.class.name) do |perform|
+        perform.next_notify_at = @next_notify_at
+      end
       puts "Now on sale!"
     end
 
-    def cooldown
-      sleep(@responce_sec + @minimum_sleep_sec)
+    def cool_down(margin_sec)
+      sleep(margin_sec + MINIMUM_SLEEP_SEC)
     end
 
-    def end?(time)
-      (Time.now - time) < (INTERVAL_SEC - @responce_sec - (@minimum_sleep_sec * 2))
+    def end?(time, margin_sec)
+      # 混み合っている時のために、前回スクレイピングにかかった時間(margin_sec)を待たせる
+      (Time.current - time) < (INTERVAL_SEC - margin_sec - (MINIMUM_SLEEP_SEC * 2))
     end
 end
