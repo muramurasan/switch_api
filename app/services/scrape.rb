@@ -12,8 +12,8 @@ class Scrape
   TEMP_RESPONSE_SEC = 5
   MINIMUM_SLEEP_SEC = 5
   NOTIFY_COOL_DOWN_SEC = 300
-  DOWN_REPORT_COOL_DOWN_SEC = 300
-  SURVIVAL_REPORT_COOL_DOWN_SEC = 3600 * 60
+  ERROR_REPORT_COOL_DOWN_SEC = 180
+  SURVIVAL_REPORT_COOL_DOWN_SEC = 3600
   VISIT_SITE_URL = "https://store.nintendo.co.jp/category/NINTENDOSWITCH/"
 
   def initialize
@@ -53,30 +53,30 @@ class Scrape
     def do_scrape
       start_time = Time.current
       visit(VISIT_SITE_URL)
-      notify! if can_notify?
+      notify!
     rescue
-      slack_notify(":scream: 正常にサイトに接続できませんでした...... :scream:")
+      error_notify!
     ensure
       duration = Time.current - start_time
       return duration
     end
 
     def load_attributes
-      perform = Perform.find_by(service_name: self.class.name)
-      if perform
-        @next_notify_at = perform.next_notify_at
-        @next_down_report_at = perform.next_down_report_at
-      else
-        @next_notify_at = Time.current + NOTIFY_COOL_DOWN_SEC
-        @next_down_report_at = Time.current + DOWN_REPORT_COOL_DOWN_SEC
-        Perform.create(service_name: self.class.name,
-                       next_notify_at: @next_notify_at,
-                       next_down_report_at: @next_down_report_at,
-                       next_survival_report_at: @next_survival_report_at)
-      end
       @next_survival_report_at = Time.current
       @survival_report_times = 0
       @slack_client = Slack::Web::Client.new
+      perform = Perform.find_by(service_name: self.class.name)
+      if perform
+        @next_notify_at = perform.next_notify_at
+        @next_error_report_at = perform.next_error_report_at
+      else
+        @next_notify_at = Time.current + NOTIFY_COOL_DOWN_SEC
+        @next_error_report_at = Time.current + ERROR_REPORT_COOL_DOWN_SEC
+        Perform.create(service_name: self.class.name,
+                       next_notify_at: @next_notify_at,
+                       next_error_report_at: @next_error_report_at,
+                       next_survival_report_at: @next_survival_report_at)
+      end
     end
 
     def survival_report!
@@ -89,21 +89,32 @@ class Scrape
       @next_survival_report_at < Time.current
     end
 
-    def can_notify?
-      !detect?("soldout") && @next_notify_at < Time.current
-    end
-
     def detect?(css_class)
       html = Nokogiri::HTML.parse(page.html)
       html.css(".#{css_class}").count > 0
     end
 
+    def can_notify?
+      !detect?("soldout") && @next_notify_at < Time.current
+    end
+
+    def can_error_notify?
+      @next_error_report_at < Time.current
+    end
+
     def notify!
+      return unless can_notify?
       @next_notify_at = NOTIFY_COOL_DOWN_SEC.seconds.since
       Perform.find_or_create_by(service_name: self.class.name) do |perform|
         perform.next_notify_at = @next_notify_at
       end
       slack_notify "@channel :tada: Now on sale!! :tada:"
+    end
+
+    def error_notify!
+      return unless can_error_notify?
+      @next_error_report_at = ERROR_REPORT_COOL_DOWN_SEC.seconds.since
+      slack_notify(":scream: 正常にサイトに接続できませんでした...... :scream:")
     end
 
     def cool_down(margin_sec)
