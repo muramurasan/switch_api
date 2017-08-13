@@ -55,7 +55,7 @@ class Scrape
       visit(VISIT_SITE_URL)
       notify! if can_notify?
     rescue
-      puts "*** error ***"
+      slack_notify(":scream: 正常にサイトに接続できませんでした...... :scream:")
     ensure
       duration = Time.current - start_time
       return duration
@@ -66,25 +66,23 @@ class Scrape
       if perform
         @next_notify_at = perform.next_notify_at
         @next_down_report_at = perform.next_down_report_at
-        @next_survival_report_at = perform.next_survival_report_at
       else
         @next_notify_at = Time.current + NOTIFY_COOL_DOWN_SEC
         @next_down_report_at = Time.current + DOWN_REPORT_COOL_DOWN_SEC
-        @next_survival_report_at = Time.current + SURVIVAL_REPORT_COOL_DOWN_SEC
         Perform.create(service_name: self.class.name,
                        next_notify_at: @next_notify_at,
                        next_down_report_at: @next_down_report_at,
                        next_survival_report_at: @next_survival_report_at)
       end
+      @next_survival_report_at = Time.current
       @survival_report_times = 0
+      @slack_client = Slack::Web::Client.new
     end
 
     def survival_report!
       @survival_report_times += 1
       @next_survival_report_at = SURVIVAL_REPORT_COOL_DOWN_SEC.seconds.since
-      Perform.find_or_create_by(service_name: self.class.name) do |perform|
-        perform.next_survival_report_at = @next_survival_report_at
-      end
+      slack_notify(":thinking_face: スクレイピングスクリプト起動してから #{@survival_report_times} 回目の生存報告 :thinking_face:")
     end
 
     def survival_report_time?
@@ -105,7 +103,7 @@ class Scrape
       Perform.find_or_create_by(service_name: self.class.name) do |perform|
         perform.next_notify_at = @next_notify_at
       end
-      puts "Now on sale!"
+      slack_notify "@channel :tada: Now on sale!! :tada:"
     end
 
     def cool_down(margin_sec)
@@ -115,5 +113,9 @@ class Scrape
     def end?(time, margin_sec)
       # 混み合っている時のために、前回スクレイピングにかかった時間(margin_sec)を待たせる
       (Time.current - time) < (INTERVAL_SEC - margin_sec - (MINIMUM_SLEEP_SEC * 2))
+    end
+
+    def slack_notify(text)
+      @slack_client.chat_postMessage(channel: '#bot_test', text: text)
     end
 end
