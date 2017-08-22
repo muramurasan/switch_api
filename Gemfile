@@ -7,6 +7,7 @@ gem 'rails_12factor', group: :production
 gem 'nokogiri'
 gem 'poltergeist'
 gem 'capybara'
+gem 'sucker_punch'
 
 # For Slack
 gem 'slack-ruby-client'

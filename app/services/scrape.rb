@@ -45,7 +45,7 @@ class Scrape
     duration = Time.current - start_time
 
     response_hash.store("total_duration", duration)
-    response_hash
+    p response_hash
   end
 
   private

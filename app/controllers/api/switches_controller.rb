@@ -3,7 +3,7 @@ Scrape.instance
 
 class Api::SwitchesController < ApplicationController
   def scrape
-    response = Scrape.instance.perform
-    render json: response
+    PerformJob.perform_later
+    render json: { request: true }
   end
 end
