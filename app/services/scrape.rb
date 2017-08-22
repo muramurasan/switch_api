@@ -11,7 +11,7 @@ class Scrape
   INTERVAL_SEC = 60
   TEMP_RESPONSE_SEC = 5
   MINIMUM_SLEEP_SEC = 5
-  NOTIFY_COOL_DOWN_SEC = 300
+  NOTIFY_COOL_DOWN_SEC = 1
   ERROR_REPORT_COOL_DOWN_SEC = 180
   SURVIVAL_REPORT_COOL_DOWN_SEC = 3600
   VISIT_SITE_URL = "https://store.nintendo.co.jp/customize.html"
@@ -52,7 +52,10 @@ class Scrape
 
     def do_scrape
       start_time = Time.current
-      visit(VISIT_SITE_URL)
+      puts "-------- start visit --------"
+      res = visit(VISIT_SITE_URL)
+      p res
+      puts "#{Time.current - start_time} s"
       notify!
     rescue
       error_notify!
@@ -72,7 +75,7 @@ class Scrape
     def survival_report!
       @survival_report_times += 1
       @next_survival_report_at = SURVIVAL_REPORT_COOL_DOWN_SEC.seconds.since
-      slack_notify(":thinking_face: スクレイピングスクリプト起動してから #{@survival_report_times} 回目の生存報告 :thinking_face:")
+      slack_notify("生存報告 #{@survival_report_times} 回目(#{ENV['SERVER_IDENTIFIER']})")
     end
 
     def survival_report_time?
@@ -81,7 +84,7 @@ class Scrape
 
     def detect?(css_class)
       html = Nokogiri::HTML.parse(page.html)
-      html.css(".#{css_class}").count > 0
+      (html.css(".#{css_class}").count > 0) || (html.css(".buttonarea").count > 0)
     end
 
     def can_notify?
