@@ -14,7 +14,7 @@ class Scrape
   NOTIFY_COOL_DOWN_SEC = 300
   ERROR_REPORT_COOL_DOWN_SEC = 180
   SURVIVAL_REPORT_COOL_DOWN_SEC = 3600
-  VISIT_SITE_URL = "https://store.nintendo.co.jp/category/NINTENDOSWITCH/"
+  VISIT_SITE_URL = "https://store.nintendo.co.jp/customize.html"
 
   def initialize
     Capybara.register_driver :poltergeist_debug do |app|
@@ -39,7 +39,7 @@ class Scrape
       last_response_sec = do_scrape
       request_times += 1
       response_hash.store("request#{request_times}_duration", last_response_sec)
-      cool_down(last_response_sec.to_i + 1)
+      cool_down(1)
     end
 
     duration = Time.current - start_time
@@ -85,7 +85,7 @@ class Scrape
     end
 
     def can_notify?
-      !detect?("soldout") && @next_notify_at < Time.current
+      !detect?("btn__primary_soldout") && @next_notify_at < Time.current
     end
 
     def can_error_notify?
@@ -96,13 +96,14 @@ class Scrape
       return unless can_notify?
       @next_notify_at = NOTIFY_COOL_DOWN_SEC.seconds.since
       # TODO: これだとメンションがうまく飛ばないので修正する
-      slack_notify(":tada: Now on sale!! :tada:", "@channel ")
+      slack_notify(":tada: Now on sale!! :tada:", "@muramurasan ")
     end
 
     def error_notify!
       return unless can_error_notify?
       @next_error_report_at = ERROR_REPORT_COOL_DOWN_SEC.seconds.since
-      slack_notify(":scream: 正常にサイトに接続できませんでした...... :scream:")
+      # うざいので無効にしておく
+      # slack_notify(":scream: 正常にサイトに接続できませんでした...... :scream:")
     end
 
     def cool_down(margin_sec)
